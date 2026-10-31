@@ -26,6 +26,12 @@ public class FirstLetters {
      */
     public static String firstLetters(String words) {
         // TODO: complete
-        return "";
+        StringBuilder concat = new StringBuilder();
+        String[] words_list = words.split(" ");
+        for (String word: words_list) {
+            char first_letter = word.charAt(0);
+            concat.append(first_letter);
+        }
+        return concat.toString();
     }
 }
