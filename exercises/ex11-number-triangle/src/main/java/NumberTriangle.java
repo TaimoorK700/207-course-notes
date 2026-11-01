@@ -109,7 +109,16 @@ public class NumberTriangle {
     //       value of wherever you ended up. An empty path means "stay here".
     //       Hint: String#charAt(int) and String#length() are all you need for the
     //       iterative version; a recursive version can use String#substring(1).
-    return 0;
+    NumberTriangle curr = this;
+    for (int i = 0; i < path.length(); i++) {
+      char nextMove = path.charAt(i);
+      if (nextMove == 'l') {
+        curr = curr.left;
+      } else {
+        curr = curr.right;
+      }
+    }
+    return curr.root;
   }
 
   /**
@@ -172,20 +181,29 @@ public class NumberTriangle {
     //       NumberTriangle objects that you built on the previous iteration).
 
     // We need to return the top of the NumberTriangle, so here is a variable for it.
-    NumberTriangle top = null;
 
     String line = br.readLine();
+    NumberTriangle top = new NumberTriangle(Integer.parseInt(line));
+    NumberTriangle[] prevRowObjs = {top};
+    line = br.readLine();
     while (line != null) {
-
-      // Remove this line when you are done; it is here so that the starter code
-      // prints the contents of the file when you run it.
-      System.out.println(line);
 
       // TODO: process the line. Splitting it on spaces gives you the numbers in
       //       this row; make a NumberTriangle for each one, then wire this row up
       //       as the children of the previous row. Remember the aliasing: the
       //       right child of one node is the left child of the next node over.
+      String[] numbers = line.split(" ");
+      NumberTriangle[] currRowObjs = new NumberTriangle[numbers.length];
+      for (int i = 0; i < numbers.length; i++) {
+        currRowObjs[i] = new NumberTriangle(Integer.parseInt(numbers[i]));
+      }
 
+      for (int i = 0; i < prevRowObjs.length; i++) {
+        prevRowObjs[i].setLeft(currRowObjs[i]);
+        prevRowObjs[i].setRight(currRowObjs[i + 1]);
+      }
+
+      prevRowObjs = currRowObjs;
       // read the next line
       line = br.readLine();
     }
