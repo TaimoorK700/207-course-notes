@@ -3,6 +3,72 @@ skinparam dpi 150
 skinparam classAttributeIconSize 0
 hide empty members
 
+' Question 1, parts 1-3
+'
+' 1. Nouns and candidate classes
+'
+' The nouns I found are library, members, items, title, catalogue number,
+' books, three weeks, DVDs, one week, reference-only items, member number,
+' hold, loan, librarians, catalogue, and late fee.
+'
+' I would keep Item, Member, Librarian, Catalogue, Hold, and Loan as classes.
+' Hold needs to remember the member and item involved. Loan needs to remember
+' who borrowed the item and when it is due. I would also add BorrowableItem
+' and ReferenceOnlyItem to distinguish which items can be borrowed.
+'
+' The nouns I would not make into separate classes are:
+' - Library: this refers to the whole system, so I do not need another class
+'   for it unless I find a separate responsibility for it later.
+' - Title: a String field in Item.
+' - Catalogue number: a unique identifier field in Item.
+' - Book and DVD: values of an ItemFormat enum. The only stated difference
+'   in their behaviour is how long they can be borrowed for.
+' - Three weeks and one week: loan-period values, or 21 and 7 days.
+' - Member number: an identifier field in Member.
+' - Late fee: an amount stored in Member. I would use a separate class if
+'   the system needed to track individual charges or payment history.
+'
+' 2. Verb phrases and responsibilities
+'
+' - "borrow items" / "can be borrowed": Member requests the borrowing, and
+'   BorrowableItem.borrow(member) checks availability and creates a Loan.
+' - "has a title and a unique catalogue number": Item stores these fields.
+'   Catalogue checks that a new item's catalogue number is not already used.
+' - "borrowed for three weeks" / "borrowed for one week": BorrowableItem
+'   provides the loan period, and Loan stores the resulting due date.
+' - "cannot be borrowed": ReferenceOnlyItem does not provide a borrow method.
+' - "log in with a member number": I would initially assign logIn to Member.
+' - "place a hold": Member requests it, and BorrowableItem.placeHold(member)
+'   checks that the item is on loan and adds a Hold to its collection of holds.
+' - "is currently on loan": BorrowableItem keeps track of its current Loan.
+' - "add new items to the catalogue": Librarian initiates this action, and
+'   Catalogue.addItem(item) checks and stores the new item.
+' - "waive a member's late fee": Librarian.waiveLateFee(member) asks Member
+'   to clear its fee amount.
+''
+' 3. Inheritance and interfaces
+'
+' I would make Item abstract, with BorrowableItem and ReferenceOnlyItem as
+' subclasses. They are both items and share a title and catalogue number.
+' Item would also have a format field to say whether it is a book or DVD.
+'
+' I would use a Borrowable interface with borrow(member) and
+' getLoanPeriodDays(). BorrowableItem implements it, but ReferenceOnlyItem
+' does not. This means borrowing code can require a Borrowable, while the
+' catalogue can work with any Item. The interface is useful for expressing
+' that capability, although this small design could use the subclasses alone.
+'
+' I would not make Book and DVD subclasses just to give them different loan
+' periods. For a borrowable item, its format determines whether the period
+' is 21 or 7 days. Keeping format separate also lets a book or DVD be
+' reference-only without needing more subclasses for each combination.
+'
+' I would keep Member and Librarian separate for now. They are both users,
+' but the specification only gives members a member number and login
+' behaviour. Being users alone does not give them shared code to inherit.
+' If both later needed shared account details or login behaviour, I would
+' consider an abstract LibraryUser superclass.
+
 ' Your task (Chapter 8, Question 1): draw the UML class diagram for the library
 ' specification — items, books, DVDs, reference-only items, members, librarians,
 ' and holds.
@@ -23,23 +89,103 @@ hide empty members
 abstract class Item {
   - title : String
   - catalogueNumber : String
+  - format : ItemFormat
   + getTitle() : String
   + getCatalogueNumber() : String
+  + getFormat() : ItemFormat
 }
 
 ' TODO: add boxes for Book and DVD. What differs between them — a whole class,
 '       or just the value of a loan-period field?
 
+enum ItemFormat {
+  BOOK
+  DVD
+}
+
 ' TODO: reference-only items cannot be borrowed at all. Decide how to say that
 '       in the diagram: a subclass, or an interface (e.g. "Borrowable") that
 '       only some items realize?
 
+interface Borrowable {
+  + borrow(member : Member) : Loan
+  + getLoanPeriodDays() : int
+}
+
+class BorrowableItem {
+  - /loanPeriodDays : int
+  + borrow(member : Member) : Loan
+  + getLoanPeriodDays() : int
+  + isOnLoan() : boolean
+  + placeHold(member : Member) : Hold
+}
+
+class ReferenceOnlyItem
+
+note right of BorrowableItem
+  loanPeriodDays is derived from format:
+  BOOK = 21 days, DVD = 7 days.
+  borrow requires no current loan.
+  placeHold requires a current loan.
+end note
+
 ' TODO: add Member and Librarian. What do they have in common? Add the common
 '       supertype if you think one is warranted.
+
+class Member {
+  - memberNumber : String
+  - lateFee : BigDecimal
+  + logIn(memberNumber : String) : boolean
+  + borrow(item : Borrowable) : Loan
+  + placeHold(item : BorrowableItem) : Hold
+  + clearLateFee() : void
+}
+
+class Librarian {
+  + addItem(catalogue : Catalogue, item : Item) : void
+  + waiveLateFee(member : Member) : void
+}
+
+class Catalogue {
+  + addItem(item : Item) : void
+  + findItem(catalogueNumber : String) : Item
+}
+
+note right of Catalogue
+  addItem rejects a catalogue number
+  that is already in use.
+end note
 
 ' TODO: add whatever represents a hold, and connect it to the classes that need
 '       to know about it.
 
+class Hold {
+  - placedOn : LocalDateTime
+}
+
+class Loan {
+  - borrowedOn : LocalDate
+  - dueDate : LocalDate
+  + getDueDate() : LocalDate
+}
+
 ' TODO: add the arrows between all of your types.
+
+Item <|-- BorrowableItem
+Item <|-- ReferenceOnlyItem
+Borrowable <|.. BorrowableItem
+Item ..> ItemFormat : uses
+
+' These associations also represent the stored object references/collections.
+Catalogue "1" --> "0..*" Item : items
+BorrowableItem "1" -- "0..1" Loan : current loan
+Loan "0..*" --> "1" Member : borrower
+BorrowableItem "1" <--> "0..*" Hold : holds
+Hold "0..*" --> "1" Member : requested by
+
+Member ..> Borrowable : requests borrowing
+Member ..> BorrowableItem : requests a hold
+Librarian ..> Catalogue : adds items
+Librarian ..> Member : waives late fee
 
 @enduml
